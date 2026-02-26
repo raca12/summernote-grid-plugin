@@ -1,8 +1,8 @@
 <h1 align="center">Summernote Grid Plugin</h1>
 
 <p align="center">
-  <strong>A robust Bootstrap grid layout plugin for Summernote editor.</strong><br>
-  Insert responsive multi-column layouts with contenteditable isolation — paste, type, and embed without breaking columns.
+  <strong>A Bootstrap grid layout plugin for Summernote editor.</strong><br>
+  Insert responsive multi-column layouts with a single click.
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/Summernote-0.8%2B-blue?logo=data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" alt="Summernote 0.8+">
   <img src="https://img.shields.io/badge/Bootstrap-5.x-purple?logo=bootstrap" alt="Bootstrap 5">
   <img src="https://img.shields.io/badge/jQuery-3.0%2B-blue?logo=jquery" alt="jQuery 3.0+">
-  <img src="https://img.shields.io/badge/size-~4KB_min-brightgreen" alt="~4KB minified">
+  <img src="https://img.shields.io/badge/size-~2KB_min-brightgreen" alt="~2KB minified">
 </p>
 
 <p align="center">
@@ -23,42 +23,11 @@
 
 ---
 
-## The Problem
+## What It Does
 
-Summernote (and most contenteditable editors) treats the entire editing area as one flat block. When you insert a grid with `<div class="row"><div class="col-md-6">...`:
+Adds a **grid button** to the Summernote toolbar. Click it, pick a layout, and a Bootstrap grid row with columns is inserted into the editor. Type, paste, or embed content inside each column.
 
-- **Pasting content** destroys columns — the right column gets deleted
-- **Backspace** merges columns together
-- **Inserting media** (images, videos) pushes content outside the grid
-- **The grid structure breaks** with almost any editing action
-
-Every existing Summernote grid plugin has this problem because they create plain `<div>` elements that contenteditable doesn't respect.
-
-## The Solution
-
-This plugin uses **contenteditable isolation**:
-
-```
-+--------------------------------------------------+
-|  .sn-grid  (contenteditable="false")              |
-|  Summernote cannot modify this container          |
-|                                                    |
-|  +---------------------+ +---------------------+  |
-|  | .sn-grid-col        | | .sn-grid-col        |  |
-|  | contenteditable=true | | contenteditable=true |  |
-|  |                      | |                      |  |
-|  | Your content here.   | | Independent zone.    |  |
-|  | Paste works.         | | Paste works.         |  |
-|  | Backspace is safe.   | | Videos embed fine.   |  |
-|  +---------------------+ +---------------------+  |
-+--------------------------------------------------+
-```
-
-- **Row** has `contenteditable="false"` — Summernote can't touch it
-- **Each column** has `contenteditable="true"` — independent editing zone
-- **Paste events** are intercepted and sandboxed per column
-- **Backspace/Delete** can't accidentally remove a column
-- Result: **columns survive any editing action**
+Simple `<div class="row"><div class="col-md-*">` markup — nothing extra, no wrapper elements, no special attributes. Clean HTML output that works with any Bootstrap-based frontend.
 
 ---
 
@@ -67,14 +36,9 @@ This plugin uses **contenteditable isolation**:
 - 12 pre-built responsive layouts (equal and asymmetric)
 - Visual preview icons in dropdown menu
 - Bootstrap 5 grid classes (`col-md-*`)
-- Paste protection (HTML + plain text, sandboxed per column)
-- Keyboard navigation (Tab / Shift+Tab between columns)
-- Backspace safety (empty columns survive, never get deleted)
-- Auto-protection for existing grids on editor init
-- One-click grid deletion (X button on hover)
-- Drag & drop stays within column boundaries
-- Mobile responsive (stacks vertically on small screens)
-- Lightweight (~4KB minified)
+- Clean HTML output — just `row` + `col-md-*` divs
+- No dependencies beyond Summernote + Bootstrap
+- Lightweight (~2KB minified)
 
 ---
 
@@ -158,7 +122,39 @@ $('#editor').summernote({
 </script>
 ```
 
-Click the grid icon in the toolbar, pick a layout, start editing inside columns. That's it.
+Click the grid icon in the toolbar, pick a layout, start editing. That's it.
+
+---
+
+## HTML Output
+
+The plugin generates clean Bootstrap markup:
+
+```html
+<div class="row sn-grid">
+    <div class="col-md-6 sn-grid-col">
+        <p>Your content here</p>
+    </div>
+    <div class="col-md-6 sn-grid-col">
+        <p>More content here</p>
+    </div>
+</div>
+```
+
+No extra wrappers, no data attributes, no inline styles. Works with any Bootstrap-based frontend out of the box.
+
+---
+
+## Styling (Optional)
+
+The included CSS adds subtle dotted borders in the editor so you can see column boundaries while editing:
+
+```css
+.note-editable .sn-grid { display: flex !important; flex-wrap: wrap !important; }
+.note-editable .sn-grid-col { border: 1px dotted #ccc; min-height: 30px; padding: 6px; }
+```
+
+On the frontend, columns render as standard Bootstrap grid — no extra CSS needed.
 
 ---
 
@@ -190,7 +186,7 @@ Click the grid icon in the toolbar, pick a layout, start editing inside columns.
 summernote-grid-plugin/
 ├── dist/
 │   ├── summernote-grid.js          # Full source
-│   ├── summernote-grid.min.js      # Minified (~4KB)
+│   ├── summernote-grid.min.js      # Minified (~2KB)
 │   ├── summernote-grid.css         # Full styles
 │   └── summernote-grid.min.css     # Minified styles
 ├── src/
@@ -202,16 +198,6 @@ summernote-grid-plugin/
 ├── LICENSE                         # MIT
 └── README.md
 ```
-
----
-
-## Why This Plugin?
-
-There are other Summernote grid plugins. They all break when you paste content, insert media, or press backspace. This is because they create plain `<div>` elements and hope contenteditable will respect them. It doesn't.
-
-This plugin was built for a production multi-tenant e-commerce platform where content editors needed reliable multi-column layouts daily. The contenteditable isolation technique solved every grid-breaking issue.
-
-**It just works. Paste anything, embed videos, backspace freely — your columns stay intact.**
 
 ---
 

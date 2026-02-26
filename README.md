@@ -1,5 +1,7 @@
 # Summernote Grid Plugin
 
+![Summernote Grid Plugin](ekran.png)
+
 A robust Bootstrap grid layout plugin for [Summernote](https://summernote.org/) WYSIWYG editor.
 
 Unlike other grid plugins, this one uses **contenteditable isolation** — each column is an independent editing zone. Content you paste, type, or embed stays inside its column. No more broken layouts.

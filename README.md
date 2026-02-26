@@ -4,6 +4,8 @@
 
 A robust Bootstrap grid layout plugin for [Summernote](https://summernote.org/) WYSIWYG editor.
 
+**[Live Demo](https://raca12.github.io/summernote-grid-plugin/examples/)**
+
 Unlike other grid plugins, this one uses **contenteditable isolation** — each column is an independent editing zone. Content you paste, type, or embed stays inside its column. No more broken layouts.
 
 ## The Problem

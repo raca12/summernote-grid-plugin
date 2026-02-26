@@ -1,0 +1,45 @@
+{
+  "name": "summernote-grid-plugin",
+  "version": "1.0.0",
+  "description": "A robust Bootstrap grid layout plugin for Summernote editor with contenteditable isolation, paste protection, and responsive column support.",
+  "main": "dist/summernote-grid.min.js",
+  "style": "dist/summernote-grid.min.css",
+  "files": [
+    "dist/",
+    "src/"
+  ],
+  "scripts": {
+    "build:js": "npx terser src/summernote-grid.js -o dist/summernote-grid.min.js --comments '/^!/' -c -m",
+    "build:css": "npx clean-css-cli src/summernote-grid.css -o dist/summernote-grid.min.css",
+    "build": "npm run build:js && npm run build:css"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raca12/summernote-grid-plugin.git"
+  },
+  "keywords": [
+    "summernote",
+    "summernote-plugin",
+    "grid",
+    "columns",
+    "layout",
+    "bootstrap",
+    "bootstrap-grid",
+    "wysiwyg",
+    "editor",
+    "responsive",
+    "contenteditable",
+    "multi-column"
+  ],
+  "author": "raca12 (https://github.com/raca12)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/raca12/summernote-grid-plugin/issues"
+  },
+  "homepage": "https://github.com/raca12/summernote-grid-plugin#readme",
+  "peerDependencies": {
+    "jquery": ">=3.0.0",
+    "summernote": ">=0.8.0",
+    "bootstrap": ">=5.0.0"
+  }
+}

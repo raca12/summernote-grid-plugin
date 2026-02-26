@@ -1,9 +1,12 @@
 /**
- * Summernote Grid Plugin v2.1
+ * Summernote Grid Plugin v2.2
  *
  * Kolonlari contenteditable izolasyonu ile korur.
  * Row: contenteditable=false (Summernote dokunmaz)
  * Col: contenteditable=true (bagimsiz editleme alani)
+ *
+ * Media insert: MutationObserver ile editore eklenen media
+ * node'larini yakalayip aktif kolona tasir.
  */
 (function($) {
     'use strict';
@@ -28,9 +31,10 @@
         var $editor = context.layoutInfo.editable;
         var self = this;
 
-        // ---- Son aktif kolon (toolbar insert icin) ----
+        // ---- Son aktif kolon ve zamani ----
         this.lastActiveCol = null;
-        this.lastRange = null;
+        this.lastActiveTime = 0;
+        var COL_TIMEOUT = 30000; // 30 saniye icinde media eklenmezse kolon ref'i dusur
 
         // ---- Toolbar button ----
         context.memo('button.grid', function() {
@@ -84,21 +88,17 @@
                 row.appendChild(col);
             }
 
-            // Sonrasi icin bos paragraf
             var after = document.createElement('p');
             after.innerHTML = '<br>';
 
             context.invoke('editor.insertNode', row);
             $(row).after(after);
 
-            // Koruma baslat
             self.protectRow($(row));
-
-            // Ilk kolona focus ver
             self.focusCol(row.querySelector('.sn-grid-col'));
         };
 
-        // ---- Kolona focus ve cursor yerlestir ----
+        // ---- Kolona focus ----
         this.focusCol = function(col) {
             if (!col) return;
             col.focus();
@@ -106,11 +106,33 @@
             var sel = window.getSelection();
             var target = col.querySelector('p') || col;
             range.selectNodeContents(target);
-            range.collapse(true);
+            range.collapse(false); // sona yerlestir
             sel.removeAllRanges();
             sel.addRange(range);
+            self.setActiveCol(col);
+        };
+
+        // ---- Aktif kolon set ----
+        this.setActiveCol = function(col) {
             self.lastActiveCol = col;
-            self.lastRange = range.cloneRange();
+            self.lastActiveTime = Date.now();
+        };
+
+        // ---- Aktif kolon hala gecerli mi? ----
+        this.isColActive = function() {
+            return self.lastActiveCol &&
+                   $.contains($editor[0], self.lastActiveCol) &&
+                   (Date.now() - self.lastActiveTime) < COL_TIMEOUT;
+        };
+
+        // ---- Bir node media mi? ----
+        this.isMediaNode = function(node) {
+            if (node.nodeType !== 1) return false;
+            var tag = node.tagName;
+            if (tag === 'IFRAME' || tag === 'IMG' || tag === 'VIDEO' || tag === 'AUDIO') return true;
+            if ($(node).hasClass('note-video-clip')) return true;
+            if ($(node).find('iframe,img,video').length > 0) return true;
+            return false;
         };
 
         // ---- Kolon koruma ----
@@ -118,7 +140,12 @@
             $row.find('.sn-grid-col').each(function() {
                 var $col = $(this);
 
-                // Paste: icerik kolonda kalsin, disari tasmasin
+                // Focus takibi
+                $col.on('mousedown focusin', function() {
+                    self.setActiveCol(this);
+                });
+
+                // Paste korumasi
                 $col.on('paste', function(e) {
                     e.stopPropagation();
                     e.preventDefault();
@@ -138,7 +165,7 @@
                     }
                 });
 
-                // Keydown: Backspace/Delete ile kolon silinmesin
+                // Backspace/Delete korumasi
                 $col.on('keydown', function(e) {
                     if (e.key === 'Backspace' || e.key === 'Delete') {
                         var content = this.innerHTML.replace(/<br\s*\/?>/gi, '').replace(/<p>\s*<\/p>/gi, '').trim();
@@ -148,7 +175,6 @@
                         }
                     }
 
-                    // Tab ile sonraki kolona gec
                     if (e.key === 'Tab') {
                         e.preventDefault();
                         e.stopPropagation();
@@ -161,72 +187,55 @@
                     }
                 });
 
-                // Drop: drag-drop kolonda kalsin
+                // Drop korumasi
                 $col.on('drop', function(e) {
                     e.stopPropagation();
                 });
             });
         };
 
-        // ---- Kolon focus takibi (toolbar insert icin kritik) ----
-        $editor.on('mousedown', '.sn-grid-col', function() {
-            self.lastActiveCol = this;
-        });
+        // ---- MutationObserver: media node'larini kolona tasi ----
+        this.observer = null;
 
-        $editor.on('focusin', '.sn-grid-col', function() {
-            self.lastActiveCol = this;
-        });
+        this.startObserver = function() {
+            if (self.observer) return;
 
-        // Kolon icinde her selection degisikliginde range'i kaydet
-        document.addEventListener('selectionchange', function() {
-            var sel = window.getSelection();
-            if (sel.rangeCount > 0) {
-                var range = sel.getRangeAt(0);
-                var container = range.startContainer;
-                var $col = $(container).closest('.sn-grid-col');
-                if ($col.length && $.contains($editor[0], $col[0])) {
-                    self.lastActiveCol = $col[0];
-                    self.lastRange = range.cloneRange();
-                }
-            }
-        });
+            self.observer = new MutationObserver(function(mutations) {
+                if (!self.isColActive()) return;
 
-        // ---- Summernote insertNode override ----
-        // Summernote video/image/link eklerken insertNode kullanir.
-        // Eger son aktif kolon varsa, icerigi oraya yonlendir.
-        var origInsertNode = null;
+                mutations.forEach(function(mutation) {
+                    if (mutation.type !== 'childList') return;
 
-        this.initialize = function() {
-            // insertNode'u yakala
-            var editorModule = context.modules.editor;
-            if (editorModule && editorModule.insertNode) {
-                origInsertNode = editorModule.insertNode.bind(editorModule);
-                editorModule.insertNode = function(node) {
-                    // Grid kolonu aktifse, oraya ekle
-                    if (self.lastActiveCol && $.contains($editor[0], self.lastActiveCol)) {
-                        var col = self.lastActiveCol;
+                    // Sadece note-editable'in direkt child'larina bak
+                    if (mutation.target !== $editor[0]) return;
 
-                        // Cursor'u kolona geri yerlestir
-                        if (self.lastRange) {
-                            var sel = window.getSelection();
-                            sel.removeAllRanges();
-                            sel.addRange(self.lastRange);
-                        }
+                    for (var i = 0; i < mutation.addedNodes.length; i++) {
+                        var node = mutation.addedNodes[i];
 
-                        // Kolon icindeyken normal insertNode calistir
-                        try {
-                            origInsertNode(node);
-                        } catch(e) {
-                            // Fallback: direkt kolona append et
+                        // sn-grid ise atla (grid ekleme)
+                        if ($(node).hasClass('sn-grid') || $(node).hasClass('sn-grid-col')) continue;
+
+                        if (self.isMediaNode(node)) {
+                            // Media node'u kolona tasi
+                            var col = self.lastActiveCol;
+
+                            // Observer'i gecici durdur (sonsuz dongu onle)
+                            self.observer.disconnect();
+
                             col.appendChild(node);
-                        }
-                        return;
-                    }
-                    // Grid disinda normal davranis
-                    origInsertNode(node);
-                };
-            }
 
+                            // Observer'i tekrar baslat
+                            self.observer.observe($editor[0], { childList: true, subtree: false });
+                        }
+                    }
+                });
+            });
+
+            self.observer.observe($editor[0], { childList: true, subtree: false });
+        };
+
+        // ---- Initialize ----
+        this.initialize = function() {
             // Mevcut grid'leri koru
             $editor.find('.sn-grid').each(function() {
                 $(this).attr('contenteditable', 'false');
@@ -243,38 +252,20 @@
                     self.protectRow($row);
                 }
             });
+
+            // MutationObserver baslat
+            self.startObserver();
         };
 
-        // ---- HTML cikti temizleme (contenteditable attribute'larini kaldir) ----
-        // Summernote 'code' cagrildiginda cikan HTML'i temizle
-        context.memo('help.grid.clean', function() {
-            return 'Grid cleanup on code retrieval';
-        });
+        // ---- Destroy ----
+        this.destroy = function() {
+            if (self.observer) {
+                self.observer.disconnect();
+                self.observer = null;
+            }
+        };
 
-        // summernote('code') veya form submit icin event hook
-        var origCodeFunc = null;
-        var $note = context.$note || context.layoutInfo.note;
-
-        // Summernote code getter'ini override et
-        if ($note && $note.data('summernote')) {
-            setTimeout(function() {
-                var snApi = $note.data('summernote');
-                if (snApi && snApi.code) {
-                    var origCode = snApi.code;
-                    snApi.code = function(html) {
-                        // Setter: icerik yaziliyorsa direkt gec
-                        if (typeof html === 'string') {
-                            return origCode.call(snApi, html);
-                        }
-                        // Getter: HTML al ve temizle
-                        var result = origCode.call(snApi);
-                        return self.cleanHTML(result);
-                    };
-                }
-            }, 100);
-        }
-
-        // ---- contenteditable temizleme fonksiyonu ----
+        // ---- HTML cikti temizleme ----
         this.cleanHTML = function(html) {
             var $tmp = $('<div>').html(html);
             $tmp.find('.sn-grid').removeAttr('contenteditable');
@@ -302,6 +293,10 @@
         $editor.on('click', function(e) {
             if (!$(e.target).closest('.sn-grid').length) {
                 $editor.find('.sn-grid-delete').remove();
+                // Grid disina tiklanirsa kolon ref'ini temizle
+                if (!$(e.target).closest('.note-toolbar').length) {
+                    self.lastActiveCol = null;
+                }
             }
         });
     };
